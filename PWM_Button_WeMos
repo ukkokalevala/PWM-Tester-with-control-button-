@@ -1,0 +1,91 @@
+#include <ESP8266WiFi.h>
+#include <math.h>
+
+#define LED_PIN D4      // Change to your LED pin
+#define BUTTON_PIN D3   // Button to change effects
+
+// Cool effect variables
+int brightness = 0;
+int effectNum = 0;
+unsigned long previousMillis = 0;
+const long interval = 20; // Timing control
+bool buttonPressed = false;
+
+// Helper function for triangular wave
+uint8_t triwave8(uint8_t in) {
+  if(in & 0x80) in = 255 - in;
+  return in << 1;
+}
+
+// Smooth wave function
+uint8_t simpleWave(uint8_t speed, uint8_t low, uint8_t high) {
+  return low + (high-low) * (1 + sin(millis()/(float)speed))/2;
+}
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  analogWriteFreq(2000);  // Higher frequency for smoother light
+  analogWriteRange(255);   // Standard 8-bit PWM range
+  
+  Serial.begin(115200);
+  Serial.println("\nCool LED Effects Ready!");
+}
+
+void loop() {
+  // Check for button press to change effect
+  if (digitalRead(BUTTON_PIN) == LOW && !buttonPressed) {
+    buttonPressed = true;
+    effectNum = (effectNum + 1) % 6; // Cycle through 6 effects
+    Serial.print("Switching to Effect #");
+    Serial.println(effectNum);
+    delay(300); // Debounce
+  }
+  if (digitalRead(BUTTON_PIN) == HIGH) {
+    buttonPressed = false;
+  }
+
+  // Timing control for smooth animations
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    
+    int pulse; // Declare variables up here to avoid case jump issues
+    uint8_t waveValue;
+    
+    switch(effectNum) {
+      case 0: // Smooth breathing effect
+        brightness += 5;
+        if(brightness > 255) brightness = 0;
+        analogWrite(LED_PIN, (exp(sin(brightness/50.0*PI)) - 0.36787944)*108.0);
+        break;
+        
+      case 1: // Fast strobe effect
+        analogWrite(LED_PIN, (millis() % 100 < 50) ? 255 : 0);
+        break;
+        
+      case 2: // Color fade simulation
+        waveValue = triwave8(millis()/10);
+        analogWrite(LED_PIN, map(waveValue, 0, 255, 50, 255));
+        break;
+        
+      case 3: // Candle flicker effect
+        analogWrite(LED_PIN, random(150, 255));
+        delay(random(50, 150));
+        break;
+        
+      case 4: // Heartbeat effect
+        pulse = millis() % 1000;
+        if(pulse < 50) analogWrite(LED_PIN, 255);
+        else if(pulse < 100) analogWrite(LED_PIN, 100);
+        else if(pulse < 150) analogWrite(LED_PIN, 255);
+        else if(pulse < 200) analogWrite(LED_PIN, 100);
+        else analogWrite(LED_PIN, 0);
+        break;
+        
+      case 5: // Rainbow wave
+        analogWrite(LED_PIN, simpleWave(20, 50, 255));
+        break;
+    }
+  }
+}
